@@ -10,8 +10,8 @@ android {
         applicationId 'com.heroarena.app'
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName '0.2-prototype'
+        versionCode 2
+        versionName '0.3-prototype'
     }
 
     buildTypes {
@@ -24,4 +24,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
 }
