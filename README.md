@@ -10,9 +10,11 @@ This project has not been built or run yet. Expect to fix small things on the fi
 
 **GitHub, no tools on your computer**
 
-1. Create an empty GitHub repository and push this folder to its `main` branch.
-2. Open the repository's Actions tab and wait for "Build APK" to finish.
-3. Download `hero-arena-apk` from the run and install `app-debug.apk` on your phone.
+Every push to `main` builds the APK and publishes it as a release. The newest one is always at:
+
+https://github.com/meiirzhan-cmd/Hero-arena-mobile/releases/latest/download/hero-arena.apk
+
+Open that link on your phone, then open the downloaded file to install it.
 
 **Android Studio**
 

@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,7 +26,19 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk hero-arena.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: hero-arena-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: hero-arena.apk
+
+      # A release gives the phone a direct .apk download link, with no zip and no sign-in.
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Hero Arena build ${{ github.run_number }}
+          body: Debug build for testing. Download hero-arena.apk below and open it on your phone.
+          files: hero-arena.apk
+          make_latest: true
