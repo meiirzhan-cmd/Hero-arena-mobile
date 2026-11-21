@@ -74,6 +74,13 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--p1);outline-off
 .cam-top{position:absolute;top:0;left:0;right:0;padding:14px 16px;display:flex;justify-content:center}
 .cam-top p{margin:0;max-width:420px;background:rgba(13,28,23,.82);padding:9px 14px;border-radius:12px;font-weight:500;text-align:center}
 .cam-zoom{position:absolute;left:24px;right:24px;bottom:122px}
+.cam-timer{position:absolute;left:0;right:0;bottom:120px;display:flex;justify-content:center}
+.cam-timer .box{display:flex;align-items:center;gap:4px;background:rgba(13,28,23,.82);border-radius:999px;padding:4px}
+.cam-timer button{width:40px;height:40px;border-radius:50%;border:0;background:var(--ink-2);color:var(--paper);font-size:22px;font-weight:700;line-height:1;padding:0}
+.cam-timer button:active{background:#2a4037}
+.cam-timer span{min-width:118px;text-align:center;font-weight:700;font-size:15px}
+#cam-count{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center;font-family:var(--font-display);font-size:min(46vw,220px);line-height:1;color:var(--paper);
+  -webkit-text-stroke:6px var(--ink);paint-order:stroke;text-shadow:0 8px 0 var(--ink);pointer-events:none}
 .cam-zoom input{width:100%;accent-color:var(--p1)}
 .cam-bar{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 22px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.65))}
 .cam-bar .ghost{background:rgba(13,28,23,.8);min-width:100px}
@@ -274,6 +281,10 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--p1);outline-off
   <video id="cam-video" playsinline muted autoplay></video>
   <div class="cam-top"><p id="cam-hint" role="status"></p></div>
   <div class="cam-msg hide" id="cam-msg"><p id="cam-msgtext"></p><button class="btn p1 center" id="cam-app" type="button" style="width:auto"><b data-t="cam_app"></b></button></div>
+  <div id="cam-count" class="hide" aria-live="assertive"></div>
+  <div class="cam-timer hide" id="cam-timer"><div class="box" role="group">
+    <button type="button" id="cam-tless" data-t-aria="timer_less">−</button><span id="cam-tval"></span><button type="button" id="cam-tmore" data-t-aria="timer_more">+</button>
+  </div></div>
   <div class="cam-zoom hide" id="cam-zoomwrap"><input id="cam-zoom" type="range" min="1" max="4" step="0.01" value="1" data-t-aria="zoom"></div>
   <div class="cam-bar">
     <button class="ghost" id="cam-cancel" type="button" data-t="cancel"></button>
@@ -383,7 +394,6 @@ const ABILITIES = {
 };
 
 
-// Each power has an outline shaped like its action. A photo for that power is cut to this outline.
 const P = {
   circ(c, x, y, r) { c.moveTo(x + r, y); c.arc(x, y, r, 0, TAU); c.closePath(); },
   ell(c, x, y, rx, ry) { c.moveTo(x + rx, y); c.ellipse(x, y, rx, ry, 0, 0, TAU); c.closePath(); },
@@ -392,22 +402,46 @@ const P = {
   poly(c, pts) { let a = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
     if (a < 0) pts = pts.slice().reverse(); c.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0], pts[i][1]); c.closePath(); }
 };
-const ASH = {
-  pan:     { vw: 140, vh: 100, d(c) { P.circ(c, 50, 50, 46); P.rr(c, 86, 41, 52, 18, 9); } },
-  slipper: { vw: 72,  vh: 132, d(c) { P.ell(c, 36, 38, 31, 35); P.ell(c, 36, 100, 25, 30); P.poly(c, [[6, 40], [66, 40], [61, 100], [11, 100]]); } },
-  dog:     { vw: 150, vh: 104, d(c) { P.ell(c, 68, 56, 44, 22); P.circ(c, 118, 36, 21); P.ell(c, 136, 44, 14, 10); P.poly(c, [[104, 26], [108, 2], [124, 20]]);
-    P.rr(c, 34, 60, 11, 42, 5); P.rr(c, 54, 64, 11, 38, 5); P.rr(c, 82, 64, 11, 38, 5); P.rr(c, 100, 60, 11, 42, 5); P.poly(c, [[28, 50], [4, 24], [11, 19], [34, 43]]); } },
-  slam:    { vw: 140, vh: 100, d(c) { P.circ(c, 94, 50, 44); P.poly(c, [[94, 8], [94, 92], [4, 68], [24, 50], [4, 32]]); } },
-  disco:   { vw: 100, vh: 134, d(c) { P.rr(c, 47, 0, 6, 26, 2); P.rr(c, 35, 20, 30, 14, 4); P.circ(c, 50, 84, 47); } },
-  coffee:  { vw: 132, vh: 112, d(c) { P.rr(c, 14, 14, 80, 82, 14); P.circ(c, 98, 52, 24); P.ell(c, 56, 100, 54, 10); } },
-  banana:  { vw: 142, vh: 70,  d(c) { c.moveTo(6, 12); c.quadraticCurveTo(70, 118, 134, 10); c.lineTo(140, 2); c.lineTo(130, 0); c.quadraticCurveTo(70, 70, 14, 6); c.closePath(); } },
-  cheese:  { vw: 130, vh: 90,  d(c) { P.poly(c, [[4, 40], [100, 4], [126, 40], [126, 86], [4, 86]]); } },
-  pizza:   { vw: 112, vh: 122, d(c) { c.moveTo(56, 120); c.lineTo(4, 26); c.quadraticCurveTo(56, -8, 108, 26); c.closePath(); } },
-  soap:    { vw: 124, vh: 112, d(c) { P.circ(c, 52, 60, 48); P.circ(c, 102, 28, 18); P.circ(c, 104, 88, 12); } },
-  soup:    { vw: 132, vh: 106, d(c) { P.ell(c, 66, 40, 62, 13); c.moveTo(128, 40); c.arc(66, 40, 62, 0, Math.PI); c.closePath(); P.rr(c, 44, 95, 44, 10, 4); } },
-  chicken: { vw: 96,  vh: 158, d(c) { P.circ(c, 46, 24, 17); P.poly(c, [[60, 18], [82, 25], [60, 32]]); P.circ(c, 40, 8, 6); P.circ(c, 51, 7, 6);
-    P.rr(c, 38, 34, 16, 56, 8); P.ell(c, 46, 114, 32, 38); P.poly(c, [[34, 146], [28, 158], [42, 153]]); P.poly(c, [[56, 146], [52, 153], [66, 158]]); } }
+// Each power has a body pose: the fighter strikes it when using the power.
+// A pose is a stick figure (head, torso, arms, legs) drawn with rounded limbs; the outline is their union.
+// Points: head, shoulder, hip, then arms [elbow, hand] x2 and legs [knee, foot] x2. Facing right, about 150 tall.
+const POSES = {
+  pan:     { h: [62, 18], s: [58, 40], hp: [55, 88], a: [[[72, 22], [84, 6]], [[44, 58], [36, 78]]], l: [[[66, 116], [78, 146]], [[44, 117], [32, 146]]] },
+  slipper: { h: [64, 20], s: [58, 42], hp: [50, 88], a: [[[38, 30], [20, 16]], [[76, 46], [96, 42]]], l: [[[72, 114], [86, 146]], [[38, 116], [20, 142]]] },
+  dog:     { h: [56, 18], s: [56, 40], hp: [56, 88], a: [[[78, 40], [102, 38]], [[40, 58], [48, 76]]], l: [[[64, 117], [70, 146]], [[48, 117], [42, 146]]] },
+  slam:    { h: [86, 30], s: [72, 46], hp: [50, 88], a: [[[54, 58], [36, 66]], [[58, 62], [44, 78]]], l: [[[72, 112], [68, 144]], [[34, 108], [16, 128]]] },
+  disco:   { h: [58, 18], s: [56, 40], hp: [54, 88], a: [[[72, 24], [88, 6]], [[42, 58], [28, 76]]], l: [[[62, 117], [62, 146]], [[38, 112], [46, 142]]] },
+  coffee:  { h: [56, 18], s: [56, 40], hp: [56, 88], a: [[[88, 56], [70, 26]], [[32, 64], [44, 84]]], l: [[[62, 117], [64, 146]], [[50, 117], [48, 146]]] },
+  banana:  { h: [62, 50], s: [56, 70], hp: [48, 106], a: [[[74, 94], [86, 126]], [[40, 86], [30, 100]]], l: [[[72, 120], [66, 146]], [[30, 122], [40, 146]]] },
+  cheese:  { h: [56, 18], s: [56, 40], hp: [56, 88], a: [[[78, 52], [98, 40]], [[42, 40], [62, 22]]], l: [[[64, 117], [70, 146]], [[48, 117], [40, 146]]] },
+  pizza:   { h: [56, 26], s: [56, 48], hp: [56, 94], a: [[[80, 46], [104, 44]], [[32, 46], [8, 46]]], l: [[[78, 118], [90, 146]], [[34, 118], [22, 146]]] },
+  soap:    { h: [56, 30], s: [56, 50], hp: [56, 96], a: [[[34, 36], [48, 10]], [[78, 36], [64, 10]]], l: [[[60, 122], [60, 148]], [[52, 122], [52, 148]]] },
+  soup:    { h: [56, 18], s: [56, 40], hp: [56, 88], a: [[[80, 60], [102, 52]], [[74, 70], [100, 66]]], l: [[[62, 117], [64, 146]], [[50, 117], [48, 146]]] },
+  chicken: { h: [56, 18], s: [56, 40], hp: [56, 88], a: [[[80, 32], [102, 20]], [[38, 56], [24, 72]]], l: [[[72, 108], [62, 124]], [[52, 117], [52, 148]]] }
 };
+const POSE_R = { head: 13, torso: 15, arm: 6.5, leg: 8 };
+function capsule(c, x1, y1, x2, y2, r) {
+  const a = Math.atan2(y2 - y1, x2 - x1), q = Math.PI / 2;
+  c.moveTo(x1 + r * Math.cos(a + q), y1 + r * Math.sin(a + q)); c.arc(x1, y1, r, a + q, a + 3 * q);
+  c.lineTo(x2 + r * Math.cos(a - q), y2 + r * Math.sin(a - q)); c.arc(x2, y2, r, a - q, a + q); c.closePath();
+}
+const ASH = {};
+for (const [id, P0] of Object.entries(POSES)) {
+  const pts = [[...P0.h, POSE_R.head], [...P0.s, POSE_R.torso], [...P0.hp, POSE_R.torso]];
+  for (const arm of P0.a) for (const q of arm) pts.push([...q, POSE_R.arm]);
+  for (const leg of P0.l) for (const q of leg) pts.push([...q, POSE_R.leg]);
+  const x0 = Math.min(...pts.map(q => q[0] - q[2])) - 2, y0 = Math.min(...pts.map(q => q[1] - q[2])) - 2;
+  const x1 = Math.max(...pts.map(q => q[0] + q[2])) + 2, y1 = Math.max(...pts.map(q => q[1] + q[2])) + 2;
+  ASH[id] = { vw: x1 - x0, vh: y1 - y0, d(c) {
+    c.save(); c.translate(-x0, -y0);
+    P.circ(c, P0.h[0], P0.h[1], POSE_R.head);
+    capsule(c, P0.h[0] * .5 + P0.s[0] * .5, (P0.h[1] + P0.s[1]) / 2, P0.s[0], P0.s[1], 6);
+    capsule(c, P0.s[0], P0.s[1], P0.hp[0], P0.hp[1], POSE_R.torso);
+    for (const [e, hd] of P0.a) { capsule(c, P0.s[0], P0.s[1] - 4, e[0], e[1], POSE_R.arm); capsule(c, e[0], e[1], hd[0], hd[1], POSE_R.arm); }
+    for (const [k, f] of P0.l) { capsule(c, P0.hp[0], P0.hp[1], k[0], k[1], POSE_R.leg); capsule(c, k[0], k[1], f[0], f[1], POSE_R.leg); }
+    c.restore();
+  } };
+}
 // place a power outline in a box: returns the scale and top-left used
 function ashFit(id, x, y, w, h) { const a = ASH[id], k = Math.min(w / a.vw, h / a.vh); return { k, x: x + (w - a.vw * k) / 2, y: y + (h - a.vh * k) / 2, w: a.vw * k, h: a.vh * k }; }
 function ashPath(c, id, f) { c.save(); c.translate(f.x, f.y); c.scale(f.k, f.k); c.beginPath(); ASH[id].d(c); c.restore(); }
@@ -450,18 +484,18 @@ const STR = {
     picked_2p: 'Player 1 picked {0}.', picked_1p: 'Your fighter: {0}.', picked_w: 'First fighter: {0}.', pick_sub: 'Six ready fighters, or make your own.',
     random: 'Random', surprise: 'Surprise me', make_own: 'Make your own', use_cam: 'Use your camera', tap: 'Tap a fighter', tap_meta: 'You’ll see its shape and powers here.',
     rand_title: 'Random fighter', rand_meta: 'One of the six ready fighters, picked for you.', pick_random: 'Pick random', pick_x: 'Pick {0}', health: '{0} health', edit: 'Edit', del: 'Delete',
-    c_new: 'Make your own fighter', c_edit: 'Edit {0}', c_sub1: 'Step 1 of 3. Shape and picture.', c_sub2: 'Step 2 of 3. Pick two powers.', c_sub3: 'Step 3 of 3. Power pictures, if you want them.',
-    c_next1: 'Next: powers', c_next2: 'Next: power pictures', c_save: 'Save fighter', name: 'Name', name_ph: 'Captain Noodle', body_shape: 'Body shape',
+    c_new: 'Make your own fighter', c_edit: 'Edit {0}', c_sub1: 'Step 1 of 3. Shape and picture.', c_sub2: 'Step 2 of 3. Pick two powers.', c_sub3: 'Step 3 of 3. Pose photos, if you want them.',
+    c_next1: 'Next: powers', c_next2: 'Next: pose photos', c_save: 'Save fighter', name: 'Name', name_ph: 'Captain Noodle', body_shape: 'Body shape',
     shape_hint: 'The photo is cut to this shape, and the shape changes how the fighter plays.', picture: 'Picture', open_cam: 'Open camera', retake: 'Retake with camera',
     choose: 'Choose a photo', remove: 'Remove photo', zoom: 'Zoom', hint_drag: 'Drag the photo until it fills the outline.', hint_new: 'Take a new photo to change it.', hint_face: 'No photo? Pick a face instead.',
-    powers_lab: 'Powers: pick 2 ({0} of 2)', powers_hint: 'You can give each power your own picture in the next step.', ppics: 'Power pictures',
-    ppics_hint: 'Optional. Your photo is cut to the shape of the power and replaces the default picture in fights.', mine: 'Your picture is used in fights.', dflt: 'Shown with the default picture.',
-    use_default: 'Use default', need2: 'Pick 2 powers to continue.', bad_pic: 'That file didn’t open as a picture. Try a JPG or PNG.', my_hero: 'My Hero', face_n: 'Face {0}',
+    powers_lab: 'Powers: pick 2 ({0} of 2)', powers_hint: 'In the next step you can photograph your fighter’s pose for each power.', ppics: 'Pose photos',
+    ppics_hint: 'Optional. Strike the pose in the outline. In fights your fighter switches to this photo when using the power.', mine: 'Your pose is shown when this power is used.', dflt: 'No pose photo yet.',
+    use_default: 'Remove pose', need2: 'Pick 2 powers to continue.', bad_pic: 'That file didn’t open as a picture. Try a JPG or PNG.', my_hero: 'My Hero', face_n: 'Face {0}',
     pause: 'Pause', paused: 'Paused', resume: 'Keep fighting', restart: 'Restart fight', quit: 'Quit to menu', again: 'Rematch', change: 'Change fighters', menu: 'Menu',
     draw: 'Draw', draw_sub: 'Time ran out with both fighters level.', wins: '{0} wins', who_p: 'Player {0}', who_you: 'You', who_cpu: 'The computer', who_f: 'Fighter {0}',
     res_time: '{0} had more health when time ran out.', res_hp: '{0} won with {1} of {2} health left.',
-    cam_body: 'Fit the whole body inside the outline.', cam_shape: 'Fit the face inside the outline.', cam_power: 'Fill the outline: {0}.', cam_fit: 'Drag and zoom so the photo fills the outline.',
-    cam_wait: 'Starting the camera…', cam_take: 'Take photo', cam_use: 'Use photo', cam_flip: 'Switch camera', cancel: 'Cancel',
+    cam_body: 'Fit the whole body inside the outline.', cam_shape: 'Fit the face inside the outline.', cam_power: 'Strike the pose for {0}.', cam_fit: 'Drag and zoom so the photo fills the outline.',
+    cam_wait: 'Starting the camera…', timer: 'Timer', timer_off: 'No timer', timer_s: '{0} s', timer_less: 'Shorter timer', timer_more: 'Longer timer', cam_stop: 'Stop timer', cam_take: 'Take photo', cam_use: 'Use photo', cam_flip: 'Switch camera', cancel: 'Cancel',
     cam_fail: 'The camera didn’t start here. You can take the photo with your phone’s camera app instead.', cam_app: 'Open camera app',
     shapes: { body: ['Full body', 'Stands tall, all-rounder'], circle: ['Circle', 'Fast and bouncy'], square: ['Square', 'Heavy, hard to push'], triangle: ['Triangle', 'Spiky, bumps hurt more'] },
     f: {},
@@ -474,18 +508,18 @@ const STR = {
     picked_2p: 'Боец игрока 1: {0}.', picked_1p: 'Твой боец: {0}.', picked_w: 'Первый боец: {0}.', pick_sub: 'Шесть готовых бойцов или твой собственный.',
     random: 'Случайный', surprise: 'Сюрприз', make_own: 'Создать своего', use_cam: 'Через камеру', tap: 'Выбери бойца', tap_meta: 'Здесь появятся его форма и способности.',
     rand_title: 'Случайный боец', rand_meta: 'Один из шести готовых бойцов, на удачу.', pick_random: 'Выбрать случайного', pick_x: 'Выбрать: {0}', health: '{0} здоровья', edit: 'Изменить', del: 'Удалить',
-    c_new: 'Создай своего бойца', c_edit: 'Изменить: {0}', c_sub1: 'Шаг 1 из 3. Форма и фото.', c_sub2: 'Шаг 2 из 3. Выбери две способности.', c_sub3: 'Шаг 3 из 3. Фото для способностей, по желанию.',
-    c_next1: 'Далее: способности', c_next2: 'Далее: фото способностей', c_save: 'Сохранить бойца', name: 'Имя', name_ph: 'Капитан Лапша', body_shape: 'Форма тела',
+    c_new: 'Создай своего бойца', c_edit: 'Изменить: {0}', c_sub1: 'Шаг 1 из 3. Форма и фото.', c_sub2: 'Шаг 2 из 3. Выбери две способности.', c_sub3: 'Шаг 3 из 3. Фото поз, по желанию.',
+    c_next1: 'Далее: способности', c_next2: 'Далее: фото поз', c_save: 'Сохранить бойца', name: 'Имя', name_ph: 'Капитан Лапша', body_shape: 'Форма тела',
     shape_hint: 'Фото вырезается по этой форме, а форма меняет то, как боец играет.', picture: 'Фото', open_cam: 'Открыть камеру', retake: 'Переснять',
     choose: 'Выбрать фото', remove: 'Убрать фото', zoom: 'Масштаб', hint_drag: 'Двигай фото, чтобы оно заполнило контур.', hint_new: 'Сделай новое фото, чтобы заменить.', hint_face: 'Без фото? Выбери лицо.',
-    powers_lab: 'Способности: выбери 2 ({0} из 2)', powers_hint: 'На следующем шаге каждой способности можно дать своё фото.', ppics: 'Фото способностей',
-    ppics_hint: 'По желанию. Фото вырезается по форме способности и заменяет обычную картинку в бою.', mine: 'В бою будет твоё фото.', dflt: 'Сейчас обычная картинка.',
-    use_default: 'Вернуть обычную', need2: 'Выбери 2 способности, чтобы продолжить.', bad_pic: 'Этот файл не открылся как фото. Попробуй JPG или PNG.', my_hero: 'Мой герой', face_n: 'Лицо {0}',
+    powers_lab: 'Способности: выбери 2 ({0} из 2)', powers_hint: 'На следующем шаге можно сфотографировать позу бойца для каждой способности.', ppics: 'Фото поз',
+    ppics_hint: 'По желанию. Встань в позу по контуру. В бою боец показывает это фото, когда применяет способность.', mine: 'Твоя поза появится, когда боец применяет способность.', dflt: 'Фото позы пока нет.',
+    use_default: 'Убрать позу', need2: 'Выбери 2 способности, чтобы продолжить.', bad_pic: 'Этот файл не открылся как фото. Попробуй JPG или PNG.', my_hero: 'Мой герой', face_n: 'Лицо {0}',
     pause: 'Пауза', paused: 'Пауза', resume: 'Продолжить', restart: 'Начать заново', quit: 'Выйти в меню', again: 'Реванш', change: 'Сменить бойцов', menu: 'Меню',
     draw: 'Ничья', draw_sub: 'Время вышло, здоровья у бойцов поровну.', wins: 'Победа: {0}', who_p: 'Игрок {0}', who_you: 'Ты', who_cpu: 'Компьютер', who_f: 'Боец {0}',
     res_time: '{0}: больше здоровья, когда вышло время.', res_hp: '{0}: победа, осталось {1} из {2} здоровья.',
-    cam_body: 'Помести всё тело в контур.', cam_shape: 'Помести лицо в контур.', cam_power: 'Заполни контур: {0}.', cam_fit: 'Двигай и увеличивай фото, чтобы оно заполнило контур.',
-    cam_wait: 'Запускаем камеру…', cam_take: 'Сделать фото', cam_use: 'Готово', cam_flip: 'Сменить камеру', cancel: 'Отмена',
+    cam_body: 'Помести всё тело в контур.', cam_shape: 'Помести лицо в контур.', cam_power: 'Встань в позу: {0}.', cam_fit: 'Двигай и увеличивай фото, чтобы оно заполнило контур.',
+    cam_wait: 'Запускаем камеру…', timer: 'Таймер', timer_off: 'Без таймера', timer_s: '{0} с', timer_less: 'Меньше', timer_more: 'Больше', cam_stop: 'Остановить таймер', cam_take: 'Сделать фото', cam_use: 'Готово', cam_flip: 'Сменить камеру', cancel: 'Отмена',
     cam_fail: 'Камера здесь не запустилась. Можно сделать фото через приложение камеры.', cam_app: 'Открыть приложение камеры',
     shapes: { body: ['В полный рост', 'Высокий, универсальный'], circle: ['Круг', 'Быстрый и прыгучий'], square: ['Квадрат', 'Тяжёлый, его трудно сдвинуть'], triangle: ['Треугольник', 'Острый, толчки больнее'] },
     f: { mom: 'Злая мама', gertie: 'Бабуля Гертруда', hamster: 'Хомяк-сумоист', wizard: 'Диско-маг', intern: 'Сонный стажёр', raccoon: 'Шеф-енот' },
@@ -691,12 +725,13 @@ function drawIcon(c, icon, x, y, size, rot, alpha) {
   else { c.font = `${size * .92}px ${EMO}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = INK; c.fillText(icon && icon.emo || '❓', 0, size * .06); }
   c.restore();
 }
-const iconFor = (def, id) => ({ emo: ABILITIES[id].icon, url: def.abilityImgs && def.abilityImgs[id] || null });
+const iconFor = (def, id) => ({ emo: ABILITIES[id].icon });
+const poseFor = (def, id) => def.abilityImgs && def.abilityImgs[id] || null;
 
 /* ---------- battle ---------- */
 function makeHero(def, team, human) {
   const sh = SHAPES[def.shape];
-  const ab = def.abilities.map(id => ({ id, a: ABILITIES[id], cd: 1 + rand(.4), icon: iconFor(def, id) }));
+  const ab = def.abilities.map(id => ({ id, a: ABILITIES[id], cd: 1 + rand(.4), icon: iconFor(def, id), pose: poseFor(def, id) }));
   const near = ab.filter(b => b.a.near).length;
   return { def, team, human, x: 0, y: 0, vx: 0, vy: 0, r: 25, top: def.shape === 'body' ? 43.75 : 25, bot: def.shape === 'body' ? 31.25 : 25, hp: sh.hp, maxHp: sh.hp, hpLag: sh.hp, mass: sh.mass, speed: sh.speed, contact: sh.contact, bounce: sh.bounce,
     rot: 0, spinV: 0, stun: 0, dance: 0, slip: 0, knock: 0, boost: 0, slow: 0, shield: 0, shieldHp: 0, healT: 0, healAcc: 0, flash: 0, dash: 0, dx: 0, dy: 1, squash: 0,
@@ -796,7 +831,7 @@ addEventListener('keydown', e => { if (e.target && e.target.tagName === 'INPUT')
 addEventListener('keyup', e => { keys[e.code] = false; });
 
 /* ---------- simulation ---------- */
-function useAbility(h, i) { const ab = h.ab[i]; ab.cd = ab.a.cd; h.squash = .16; ab.a.use(h, foeOf(h.team), ab); }
+function useAbility(h, i) { const ab = h.ab[i]; ab.cd = ab.a.cd; h.squash = .16; if (ab.pose) { const [ux] = aim(h); h.pose = { url: ab.pose, t: .8, flip: ux < 0 }; } ab.a.use(h, foeOf(h.team), ab); }
 function aiThink(h, dt) {
   const e = foeOf(h.team), a = h.ai; if (!e) { h.in.x = h.in.y = 0; return; }
   let dx = e.x - h.x, dy = e.y - h.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
@@ -829,6 +864,7 @@ function stepHero(h, dt) {
   if (h.healT > 0) { h.healT -= dt; heal(h, 9 * dt); }
   for (const ab of h.ab) if (ab.cd > 0) ab.cd -= dt;
   if (h.swing) { h.swing.t += dt; if (h.swing.t > h.swing.dur) h.swing = null; }
+  if (h.pose) { h.pose.t -= dt; if (h.pose.t <= 0 || h.stun > 0) h.pose = null; }
   let mx = 0, my = 0;
   if (G.state === 'fight' && h.stun <= 0) {
     if (h.human) { const c = input(h.team); mx = c.x; my = c.y; for (let i = 0; i < 2; i++) if (c.held[i] && h.ab[i].cd <= 0) useAbility(h, i); }
@@ -937,7 +973,11 @@ function drawHero(h) {
   c.save(); c.globalAlpha = h.dead ? h.fade : 1;
   c.fillStyle = TEAM[h.team]; c.globalAlpha *= .85; c.beginPath(); c.ellipse(X, Y + h.bot * s * .94, R * (h.def.shape === 'body' ? .9 : 1.05), R * .34, 0, 0, TAU); c.fill(); c.globalAlpha = h.dead ? h.fade : 1;
   const bob = h.dead ? 0 : Math.sin(G.clock * 6 + h.ph) * 1.5, k = h.squash > 0 ? 1 + h.squash * 1.1 : 1, sc = h.dead ? .4 + h.fade * .6 : 1;
-  c.save(); c.translate(X, Y + bob); c.scale(k * sc, (2 - k) * sc); drawBody(c, h.def, 0, 0, R, h.rot, h.flash > 0); c.restore();
+  const pim = h.pose && !h.dead ? getImg(h.pose.url) : null;
+  if (pim) { const sz = Math.max(75, h.top + h.bot) * s * 1.2, cy = Y + bob - (h.top - h.bot) / 2 * s, pop = Math.min(1, (.8 - h.pose.t) / .08);
+    c.save(); c.translate(X, cy); c.scale((h.pose.flip ? -1 : 1) * (.7 + .3 * pop), .7 + .3 * pop); c.drawImage(pim, -sz / 2, -sz / 2, sz, sz);
+    if (h.flash > 0) { c.globalAlpha = .5; c.globalCompositeOperation = 'source-atop'; c.fillStyle = '#fff'; c.fillRect(-sz / 2, -sz / 2, sz, sz); } c.restore(); }
+  else { c.save(); c.translate(X, Y + bob); c.scale(k * sc, (2 - k) * sc); drawBody(c, h.def, 0, 0, R, h.rot, h.flash > 0); c.restore(); }
   if (h.shield > 0) { c.beginPath(); if (h.def.shape === 'body') c.ellipse(X, Y - R * .25, R * 1.15, R * 1.9, 0, 0, TAU); else c.arc(X, Y, R * 1.42, 0, TAU); c.fillStyle = 'rgba(160,225,255,.25)'; c.fill(); c.lineWidth = 3; c.strokeStyle = 'rgba(215,243,255,.9)'; c.stroke(); c.beginPath(); c.arc(X - R * .5, Y - R * .6, R * .22, 0, TAU); c.fillStyle = 'rgba(255,255,255,.7)'; c.fill(); }
   if (h.dance > 0) for (let i = 0; i < 3; i++) { const a = G.clock * 5 + i * TAU / 3; drawIcon(c, { emo: '🎵' }, X + Math.cos(a) * R * 1.5, Y - R * .4 + Math.sin(a) * R * .7, R * .7); }
   else if (h.slip > 0) for (let i = 0; i < 3; i++) { const a = G.clock * 7 + i * TAU / 3; drawIcon(c, { emo: '⭐' }, X + Math.cos(a) * R * 1.2, Y - h.top * s * 1.15 + Math.sin(a) * R * .3, R * .5); }
@@ -968,7 +1008,7 @@ function drawStrip(team) {
       const ab = h.ab[i], b = g.b[i], ready = ab.cd <= 0, down = cc.held[i], R = g.R * (down ? .93 : 1);
       c.beginPath(); c.arc(b.x, b.y + 4, R, 0, TAU); c.fillStyle = INK; c.fill();
       c.beginPath(); c.arc(b.x, b.y + (down ? 3 : 0), R, 0, TAU); c.fillStyle = ready ? PAPER : '#31473f'; c.fill(); c.lineWidth = 4; c.strokeStyle = ready ? TEAM[team] : INK; c.stroke();
-      drawIcon(c, ab.icon, b.x, b.y + (down ? 3 : 0), R * 1.15, 0, ready ? 1 : .4);
+      drawIcon(c, ab.pose ? { url: ab.pose, emo: ab.icon.emo } : ab.icon, b.x, b.y + (down ? 3 : 0), R * (ab.pose ? 1.5 : 1.15), 0, ready ? 1 : .4);
       if (!ready) { const p = clamp(ab.cd / ab.a.cd, 0, 1); c.beginPath(); c.moveTo(b.x, b.y); c.arc(b.x, b.y, R, -Math.PI / 2, -Math.PI / 2 + TAU * p); c.closePath(); c.fillStyle = 'rgba(13,28,23,.55)'; c.fill(); }
     }
   }
@@ -1162,6 +1202,20 @@ $('#c-zoom').addEventListener('input', e => { draft.fit.z = +e.target.value; pai
   const end = e => { if (drag && drag.id === e.pointerId) drag = null; }; pv.addEventListener('pointerup', end); pv.addEventListener('pointercancel', end); }
 
 /* camera screen: live camera, or a still photo, with the outline drawn on top */
+let camTimer = 3; try { const v = parseInt(localStorage.getItem('heroArena.timer'), 10); if (v >= 0 && v <= 30) camTimer = v; } catch (e) {}
+const TIMER_STEPS = [0, 2, 3, 5, 10, 15, 20, 30];
+let camCount = null;
+function camTimerText() { $('#cam-tval').textContent = '⏱ ' + (camTimer ? T('timer_s', camTimer) : T('timer_off')); }
+function setCamTimer(dir) { const i = TIMER_STEPS.indexOf(camTimer), j = clamp((i < 0 ? 2 : i) + dir, 0, TIMER_STEPS.length - 1); camTimer = TIMER_STEPS[j];
+  try { localStorage.setItem('heroArena.timer', String(camTimer)); } catch (e) {} camTimerText(); }
+function beep(f, d) { if (!soundOn) return; wakeAudio(); if (!AC) return; try { tone(f, f, d, 'square', .08); } catch (e) {} }
+function stopCount() { if (camCount) { clearInterval(camCount.iv); camCount = null; } $('#cam-count').classList.add('hide'); camHint(); }
+function startCount() {
+  let n = camTimer; const box = $('#cam-count'); box.textContent = n; box.classList.remove('hide'); beep(660, .08);
+  camCount = { iv: setInterval(() => { n--; if (S.screen !== 'cam' || !CAM.live) { stopCount(); return; }
+    if (n > 0) { box.textContent = n; beep(660, .08); } else { stopCount(); beep(990, .2); camCapture(); } }, 1000) };
+  camHint();
+}
 const CAM = { mode: null, id: null, stream: null, facing: 'environment', live: false, still: null, z: 1, ox: 0, oy: 0, box: null, raf: 0, ptr: new Map(), pinch: null, busy: false };
 const camCv = $('#cam-cv'), camCx = camCv.getContext('2d'), camVid = $('#cam-video'), camOv = document.createElement('canvas');
 function camAspect() { if (CAM.mode === 'hero') { const b = shapeBox(draft.shape, 1); return b.w / b.h; } const a = ASH[CAM.id]; return a.vw / a.vh; }
@@ -1173,6 +1227,8 @@ function camHint() {
   $('#cam-hint').textContent = CAM.live || CAM.still ? h : T('cam_wait');
   const shot = $('#cam-shot'); shot.textContent = CAM.still && !CAM.live ? '✓' : ''; shot.setAttribute('aria-label', T(CAM.still && !CAM.live ? 'cam_use' : 'cam_take'));
   shot.disabled = !(CAM.live || CAM.still);
+  if (camCount) { shot.textContent = '■'; shot.setAttribute('aria-label', T('cam_stop')); }
+  $('#cam-timer').classList.toggle('hide', !CAM.live || !!camCount); camTimerText();
   $('#cam-flip').classList.toggle('inv', !CAM.live);
   $('#cam-zoomwrap').classList.toggle('hide', !(CAM.still && !CAM.live));
 }
@@ -1207,7 +1263,7 @@ function camFrame() {
   const o = camOv.getContext('2d'); o.setTransform(dpr, 0, 0, dpr, 0, 0); o.globalCompositeOperation = 'source-over'; o.clearRect(0, 0, W, H);
   o.fillStyle = 'rgba(0,0,0,.58)'; o.fillRect(0, 0, W, H); o.lineJoin = 'round';
   camOutline(o, CAM.box); o.lineWidth = 9; o.strokeStyle = INK; o.stroke(); o.lineWidth = 5; o.strokeStyle = TEAM[0]; o.stroke();
-  o.globalCompositeOperation = 'destination-out'; camOutline(o, CAM.box); o.fill(); o.globalCompositeOperation = 'source-over';
+  o.globalCompositeOperation = 'destination-out'; o.fillStyle = '#000'; camOutline(o, CAM.box); o.fill(); o.globalCompositeOperation = 'source-over';
   c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(camOv, 0, 0);
   CAM.raf = requestAnimationFrame(camFrame);
 }
@@ -1219,7 +1275,7 @@ async function camStart() {
   CAM.stream = stream; camVid.srcObject = stream; await camVid.play().catch(() => {});
   CAM.live = true; camHint();
 }
-function camStop() { if (CAM.stream) CAM.stream.getTracks().forEach(t => t.stop()); CAM.stream = null; CAM.live = false; try { camVid.srcObject = null; } catch (e) {} }
+function camStop() { if (camCount) { clearInterval(camCount.iv); camCount = null; $('#cam-count').classList.add('hide'); } if (CAM.stream) CAM.stream.getTracks().forEach(t => t.stop()); CAM.stream = null; CAM.live = false; try { camVid.srcObject = null; } catch (e) {} }
 function camShow(mode, id) {
   CAM.mode = mode; CAM.id = id || null; CAM.z = 1; CAM.ox = CAM.oy = 0; CAM.ptr.clear(); CAM.pinch = null;
   $('#cam-msg').classList.add('hide'); $('#cam-zoom').value = 1; show('cam'); camHint();
@@ -1233,9 +1289,9 @@ function camOpen(mode, id) {
   });
 }
 function camOpenStill(mode, id, canvas) { camStop(); CAM.still = canvas; camShow(mode, id); }
-function camClose() { camStop(); CAM.still = null; renderCreate(); show('create'); }
+function camClose() { if (camCount) { clearInterval(camCount.iv); camCount = null; $('#cam-count').classList.add('hide'); } camStop(); CAM.still = null; renderCreate(); show('create'); }
 function camCapture() {
-  const g = camGeo(); if (!g) return;
+  if (S.screen !== 'cam') return; const g = camGeo(); if (!g) return;
   const b = CAM.box, k = Math.min(4, Math.max(1, 1 / g.s), 1400 / b.h), cc = document.createElement('canvas');
   cc.width = Math.max(1, Math.round(b.w * k)); cc.height = Math.max(1, Math.round(b.h * k));
   const x = cc.getContext('2d'); x.setTransform(k, 0, 0, k, -b.x * k, -b.y * k); camDrawSource(x, g);
@@ -1244,7 +1300,9 @@ function camCapture() {
     crop.getContext('2d').drawImage(cc, (f.x) * k, (f.y) * k, f.w * k, f.h * k, 0, 0, crop.width, crop.height); draft.abilityImgs[CAM.id] = bakeAbil(crop, CAM.id); }
   camClose();
 }
-$('#cam-shot').addEventListener('click', camCapture);
+$('#cam-shot').addEventListener('click', () => { if (camCount) { stopCount(); return; } if (CAM.live && camTimer > 0) startCount(); else camCapture(); });
+$('#cam-tless').addEventListener('click', () => setCamTimer(-1));
+$('#cam-tmore').addEventListener('click', () => setCamTimer(1));
 $('#cam-cancel').addEventListener('click', camClose);
 $('#cam-flip').addEventListener('click', () => { CAM.facing = CAM.facing === 'user' ? 'environment' : 'user'; camOpen(CAM.mode, CAM.id); });
 $('#cam-app').addEventListener('click', () => { const f = $('#f-cam'); f.value = ''; f.click(); });
